@@ -12,7 +12,6 @@
 (ql:quickload "ironclad")
 (ql:quickload "cl-ppcre")
 (ql:quickload "cl-base64")
-;(ql:quickload "hunchentoot") ;; url encode?
 (ql:quickload "url-rewrite")
 
 (defun initialize-cl-yubico (id key)
@@ -31,37 +30,58 @@
        (loop for x from 0 upto 40 do
 	    (format salt "~A" (string (code-char (+ 32 (random 94)))))))))))
 
-(defun hmac-sha1-signature (id key otp nonce)
-  (let ((unsigned (format nil "id=~A&nonce=~A&otp=~A" id nonce otp))
-	(hmac (ironclad:make-hmac (base64:base64-string-to-usb8-array key)
-					       :sha1)))
+(defun hmac-sha1-signature (key params)
+  (let ((hmac (ironclad:make-hmac (base64:base64-string-to-usb8-array key)
+				  :sha1))
+        (unsigned (format nil  "~{~A~^&~}"
+			  (loop for x in (sort (copy-list params)
+					       #'string<
+					       :key #'car)
+			     collect (format nil "~A=~A" (car x) (cdr x))))))
     (ironclad:update-hmac hmac (sb-ext:string-to-octets unsigned :external-format :latin1))
     (base64:usb8-array-to-base64-string
      (ironclad:hmac-digest hmac))))
 
+(defun start-pos (expr target)
+  (+ (length expr)
+     (search expr target)))
+
+(defun end-pos (target start-pos)
+  (position #\Return target :start start-pos))
+
+(defun subseq-value (expr target)
+  (let* ((start-pos (start-pos expr target))
+	 (end-pos (end-pos target start-pos)))
+    (subseq target start-pos end-pos)))
+
 (defun validate-otp (otp)
   (let* ((nonce (make-nonce))
-	 (h (hmac-sha1-signature *id* *key* otp nonce)))
-    (multiple-value-bind (response http-status-code)
-	(drakma:http-request
-	 (format nil
-		 "http://api2.yubico.com/wsapi/2.0/verify?id=~A&otp=~A&nonce=~A&h=~A"
-		 *id* otp nonce (url-rewrite:url-encode h)))
-      ;; (assert (eql http-status-code 200)
-      ;; 	      (http-status-code)
-      ;; 	      "HTTP status code is ~A, should be 200" http-status-code)
-      (break "response= ~A" response)
-    (let* ((otp-start (+ 4 (search "otp=" response)))
-	   (otp-end (position #\Return response :start otp-start))
-	   (otp-res (subseq response otp-start otp-end))
-	   (nonce-start (+ 6 (search "nonce=" response :start2 otp-end)))
-	   (nonce-end (position #\Return response :start nonce-start))
-	   (nonce-res (subseq response nonce-start nonce-end))
-	   (status-start (+ 7 (search "status=" response :start2 nonce-end)))
-	   (status-end (position #\Return response :start status-start))
-	   (status-res (subseq response status-start status-end)))
-      (and (string= nonce nonce-res)
-	   (string= otp otp-res)
-	   (string= status-res "OK"))
-	   h
-	   ))))
+	 (response (drakma:http-request
+		    (format nil
+			    "http://api2.yubico.com/wsapi/2.0/verify?id=~A&otp=~A&nonce=~A&h=~A"
+			    *id* otp nonce (url-rewrite:url-encode
+					    (hmac-sha1-signature  *key* `(("id" . ,*id*)
+									  ("otp" . ,otp)
+									  ("nonce" . ,nonce)))))))
+	 (h-res (subseq-value "h=" response))
+	 (t-res (subseq-value "t=" response))
+	 (otp-res (subseq-value "otp=" response))
+	 (nonce-res (subseq-value "nonce=" response))
+	 (status-res (subseq-value "status=" response)))
+
+    ;(print response)
+    ;; (break "~A ~A" h-res
+    ;;  	   (hmac-sha1-signature *key*
+    ;; 				`(("id" . ,*id*)
+    ;; 				  ("otp" . ,otp-res)
+    ;; 				  ("nonce" . ,nonce-res)
+    ;; 				  )))
+    (values (and (string= nonce nonce-res)
+		 (string= otp otp-res)
+		 (string= status-res "OK"))
+	    h-res
+	    t-res
+	    otp-res
+	    nonce-res
+	    status-res
+	    )))
