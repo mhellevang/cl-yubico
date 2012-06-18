@@ -27,6 +27,7 @@
 					       #'string<
 					       :key #'car)
 			     collect (format nil "~A=~A" (car x) (cdr x))))))
+    ;(break "unsigned = ~A" unsigned)
     (ironclad:update-hmac hmac (sb-ext:string-to-octets unsigned :external-format :latin1))
     (base64:usb8-array-to-base64-string
      (ironclad:hmac-digest hmac))))
@@ -57,20 +58,15 @@
 	 (otp-res (subseq-value "otp=" response))
 	 (nonce-res (subseq-value "nonce=" response))
 	 (status-res (subseq-value "status=" response)))
-
-    ;(print response)
-    ;; (break "~A ~A" h-res
-    ;;  	   (hmac-sha1-signature *key*
-    ;; 				`(("id" . ,*id*)
-    ;; 				  ("otp" . ,otp-res)
-    ;; 				  ("nonce" . ,nonce-res)
-    ;; 				  )))
+    (format t "~%response = ~&**~&~A~&**" response)
+    (format t "~%h-res = ~A" h-res)
+    (format t "~%h = ~A" (hmac-sha1-signature *key* `(("id" . ,*id*)
+						      ("otp" . ,otp)
+						      ("nonce" . ,nonce))))
     (values (and (string= nonce nonce-res)
 		 (string= otp otp-res)
 		 (string= status-res "OK"))
-	    h-res
-	    t-res
-	    otp-res
-	    nonce-res
-	    status-res
-	    )))
+	    status-res)
+    ))
+
+; (cl-yubico::validate-otp "cccccccvrfcbnhgfdgucbjrlidvkdvnnkbljeruducvh")
