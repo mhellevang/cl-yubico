@@ -1,18 +1,7 @@
-(defpackage #:cl-yubico
-  (:documentation
-   "Common Lisp Yubico client.")
-  (:use #:cl))
-
 (in-package #:cl-yubico)
 
 (defparameter *id* nil)
 (defparameter *key* nil)
-
-(ql:quickload "drakma")
-(ql:quickload "ironclad")
-(ql:quickload "cl-ppcre")
-(ql:quickload "cl-base64")
-(ql:quickload "url-rewrite")
 
 (defun initialize-cl-yubico (id key)
   "Initialize the client. id is your client id, key is your secret API key."
