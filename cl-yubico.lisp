@@ -27,46 +27,46 @@
 					       #'string<
 					       :key #'car)
 			     collect (format nil "~A=~A" (car x) (cdr x))))))
-    ;(break "unsigned = ~A" unsigned)
     (ironclad:update-hmac hmac (sb-ext:string-to-octets unsigned :external-format :latin1))
     (base64:usb8-array-to-base64-string
      (ironclad:hmac-digest hmac))))
 
 (defun start-pos (expr target)
-  (+ (length expr)
-     (search expr target)))
+  (when (and expr target)
+    (let ((pos (search expr target)))
+      (when pos (+ (length expr) pos)))))
 
 (defun end-pos (target start-pos)
-  (position #\Return target :start start-pos))
+  (when (and target start-pos)
+    (position #\Return target :start start-pos)))
 
 (defun subseq-value (expr target)
   (let* ((start-pos (start-pos expr target))
 	 (end-pos (end-pos target start-pos)))
-    (subseq target start-pos end-pos)))
+    (if (and start-pos end-pos)
+	(subseq target start-pos end-pos)
+	nil)))
 
 (defun validate-otp (otp)
   (let* ((nonce (make-nonce))
+	 (h (hmac-sha1-signature  *key* `(("id" . ,*id*)
+					  ("otp" . ,otp)
+					  ("nonce" . ,nonce))))
 	 (response (drakma:http-request
 		    (format nil
-			    "http://api2.yubico.com/wsapi/2.0/verify?id=~A&otp=~A&nonce=~A&h=~A"
-			    *id* otp nonce (url-rewrite:url-encode
-					    (hmac-sha1-signature  *key* `(("id" . ,*id*)
-									  ("otp" . ,otp)
-									  ("nonce" . ,nonce)))))))
+			    "http://api.yubico.com/wsapi/2.0/verify?id=~A&otp=~A&nonce=~A&h=~A"
+			    *id* otp nonce (url-rewrite:url-encode h))))
 	 (h-res (subseq-value "h=" response))
 	 (t-res (subseq-value "t=" response))
 	 (otp-res (subseq-value "otp=" response))
 	 (nonce-res (subseq-value "nonce=" response))
 	 (status-res (subseq-value "status=" response)))
-    (format t "~%response = ~&**~&~A~&**" response)
-    (format t "~%h-res = ~A" h-res)
-    (format t "~%h = ~A" (hmac-sha1-signature *key* `(("id" . ,*id*)
-						      ("otp" . ,otp)
-						      ("nonce" . ,nonce))))
+    ;; (format t "~%response = ~&**~&~S~&**" response)
+    ;; (format t "~%h = ~S" h)
+    ;; (format t "~%h-res = ~S" h-res)
     (values (and (string= nonce nonce-res)
 		 (string= otp otp-res)
 		 (string= status-res "OK"))
-	    status-res)
-    ))
+	    (intern (substitute #\- #\_ status-res) :keyword))))
 
-; (cl-yubico::validate-otp "cccccccvrfcbnhgfdgucbjrlidvkdvnnkbljeruducvh")
+(cl-yubico::validate-otp "cccccccvrfcbtcrbuddncdthnvdjlhchtuvvtektnifb")
