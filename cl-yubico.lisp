@@ -47,6 +47,9 @@
 	(subseq target start-pos end-pos)
 	nil)))
 
+(defun valid-otp-format (otp)
+  )
+
 (defun validate-otp (otp)
   (let* ((nonce (make-nonce))
 	 (h (hmac-sha1-signature  *key* `(("id" . ,*id*)
