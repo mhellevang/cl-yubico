@@ -20,6 +20,7 @@
 	    (format salt "~A" (string (code-char (+ 32 (random 94)))))))))))
 
 (defun hmac-sha1-signature (key params)
+  (format t "~%params = ~S" params)
   (let ((hmac (ironclad:make-hmac (base64:base64-string-to-usb8-array key)
 				  :sha1))
         (unsigned (format nil  "~{~A~^&~}"
@@ -27,6 +28,7 @@
 					       #'string<
 					       :key #'car)
 			     collect (format nil "~A=~A" (car x) (cdr x))))))
+    ;(format t "~%unsigned = ~S~&" unsigned)
     (ironclad:update-hmac hmac (sb-ext:string-to-octets unsigned :external-format :latin1))
     (base64:usb8-array-to-base64-string
      (ironclad:hmac-digest hmac))))
@@ -52,24 +54,31 @@
 
 (defun validate-otp (otp)
   (let* ((nonce (make-nonce))
-	 (h (hmac-sha1-signature  *key* `(("id" . ,*id*)
-					  ("otp" . ,otp)
-					  ("nonce" . ,nonce))))
 	 (response (drakma:http-request
 		    (format nil
 			    "http://api.yubico.com/wsapi/2.0/verify?id=~A&otp=~A&nonce=~A&h=~A"
-			    *id* otp nonce (url-rewrite:url-encode h))))
+			    *id* otp nonce (url-rewrite:url-encode
+					    (hmac-sha1-signature *key* `(("id" . ,*id*)
+									 ("otp" . ,otp)
+									 ("nonce" . ,nonce)))))))
 	 (h-res (subseq-value "h=" response))
 	 (t-res (subseq-value "t=" response))
 	 (otp-res (subseq-value "otp=" response))
 	 (nonce-res (subseq-value "nonce=" response))
-	 (status-res (subseq-value "status=" response)))
-    ;; (format t "~%response = ~&**~&~S~&**" response)
-    ;; (format t "~%h = ~S" h)
-    ;; (format t "~%h-res = ~S" h-res)
+	 (sl-res (subseq-value "sl=" response))
+	 (status-res (subseq-value "status=" response))
+	 (h (hmac-sha1-signature *key*  `(("status" . ,status-res)
+					  ("t" . ,t-res)
+					  ("otp" . ,otp-res)
+					  ("nonce" . ,nonce-res)
+					  ("sl" . ,sl-res)))))
+    (format t "~&response= ~S" response)
+    (format t "~%h = ~S" h)
+    (format t "~%h-res = ~S" h-res)
     (values (and (string= nonce nonce-res)
 		 (string= otp otp-res)
+		 (string= h h-res)
 		 (string= status-res "OK"))
 	    (intern (substitute #\- #\_ status-res) :keyword))))
 
-(cl-yubico::validate-otp "cccccccvrfcbtcrbuddncdthnvdjlhchtuvvtektnifb")
+; (cl-yubico::validate-otp "cccccccvrfcbtcrbuddncdthnvdjlhchtuvvtektnifb")
