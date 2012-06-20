@@ -1,3 +1,10 @@
+;;
+;; Source code for cl-yubico
+;;
+;; Copyright (c) 2012 Mathias Hellevang
+;; This code is licenced under LGPLv3.
+;;
+
 (in-package #:cl-yubico)
 
 (defvar *id* nil)
