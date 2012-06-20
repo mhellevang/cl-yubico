@@ -1,7 +1,7 @@
 (in-package #:cl-yubico)
 
-(defparameter *id* nil)
-(defparameter *key* nil)
+(defvar *id* nil)
+(defvar *key* nil)
 
 (defun initialize-cl-yubico (id key)
   "Initialize the client. id is your client id, key is your secret API key."
@@ -20,7 +20,7 @@
 	    (format salt "~A" (string (code-char (+ 32 (random 94)))))))))))
 
 (defun hmac-sha1-signature (key params)
-  (format t "~%params = ~S" params)
+  ;(format t "~%params = ~S" params)
   (let ((hmac (ironclad:make-hmac (base64:base64-string-to-usb8-array key)
 				  :sha1))
         (unsigned (format nil  "~{~A~^&~}"
@@ -50,9 +50,13 @@
 	nil)))
 
 (defun valid-otp-format (otp)
-  )
+  (<= 32 (length otp) 48))
 
 (defun validate-otp (otp)
+  (assert (and *id* *key*) (*id* *key*)
+	  "Client not initalized. Initialize by calling (cl-yubico:initialize) first.")
+  (assert (valid-otp-format otp) (otp)
+	  "Invalid otp submitted.")
   (let* ((nonce (make-nonce))
 	 (response (drakma:http-request
 		    (format nil
@@ -67,18 +71,20 @@
 	 (nonce-res (subseq-value "nonce=" response))
 	 (sl-res (subseq-value "sl=" response))
 	 (status-res (subseq-value "status=" response))
-	 (h (hmac-sha1-signature *key*  `(("status" . ,status-res)
-					  ("t" . ,t-res)
-					  ("otp" . ,otp-res)
-					  ("nonce" . ,nonce-res)
-					  ("sl" . ,sl-res)))))
-    (format t "~&response= ~S" response)
-    (format t "~%h = ~S" h)
-    (format t "~%h-res = ~S" h-res)
+	 (timestamp-res (subseq-value "timestamp" response))
+	 (sessioncounter-res (subseq-value "sessioncounter" response))
+	 (sessionuse-res (subseq-value "sessionuse" response))
+	 (unsigned-params ()))
+    (when t-res (push `("t" . ,t-res) unsigned-params))
+    (when otp-res (push `("otp" . ,otp-res) unsigned-params))
+    (when nonce-res (push `("nonce" . ,nonce-res) unsigned-params))
+    (when sl-res (push `("sl" . ,sl-res) unsigned-params))
+    (when status-res (push `("status" . ,status-res) unsigned-params))
+    (when timestamp-res (push `("timestamp" . ,timestamp-res) unsigned-params))
+    (when sessioncounter-res (push `("sessioncounter" . ,sessioncounter-res) unsigned-params))
+    (when sessionuse-res (push `("sessionuse" . ,sessionuse-res) unsigned-params))
     (values (and (string= nonce nonce-res)
 		 (string= otp otp-res)
-		 (string= h h-res)
+		 (string= h-res (hmac-sha1-signature *key* unsigned-params))
 		 (string= status-res "OK"))
 	    (intern (substitute #\- #\_ status-res) :keyword))))
-
-; (cl-yubico::validate-otp "cccccccvrfcbtcrbuddncdthnvdjlhchtuvvtektnifb")
