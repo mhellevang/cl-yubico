@@ -1,4 +1,5 @@
 (defpackage #:cl-yubico
   (:documentation
    "Common Lisp Yubico client.")
-  (:use #:cl))
+  (:use #:cl)
+  (:export #:initialize #:validate-otp))

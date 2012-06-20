@@ -3,7 +3,7 @@
 (defvar *id* nil)
 (defvar *key* nil)
 
-(defun initialize-cl-yubico (id key)
+(defun initialize (id key)
   "Initialize the client. id is your client id, key is your secret API key."
   (check-type id integer)
   (check-type key string)
@@ -20,7 +20,6 @@
 	    (format salt "~A" (string (code-char (+ 32 (random 94)))))))))))
 
 (defun hmac-sha1-signature (key params)
-  ;(format t "~%params = ~S" params)
   (let ((hmac (ironclad:make-hmac (base64:base64-string-to-usb8-array key)
 				  :sha1))
         (unsigned (format nil  "~{~A~^&~}"
@@ -28,7 +27,6 @@
 					       #'string<
 					       :key #'car)
 			     collect (format nil "~A=~A" (car x) (cdr x))))))
-    ;(format t "~%unsigned = ~S~&" unsigned)
     (ironclad:update-hmac hmac (sb-ext:string-to-octets unsigned :external-format :latin1))
     (base64:usb8-array-to-base64-string
      (ironclad:hmac-digest hmac))))
@@ -53,6 +51,7 @@
   (<= 32 (length otp) 48))
 
 (defun validate-otp (otp)
+  "Validates yubikey otp against Yubico servers."
   (assert (and *id* *key*) (*id* *key*)
 	  "Client not initalized. Initialize by calling (cl-yubico:initialize) first.")
   (assert (valid-otp-format otp) (otp)
