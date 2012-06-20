@@ -1,7 +1,7 @@
 ;;
 ;; Package for cl-yubico
 ;;
-;; Copyright (c) 2012 Mathias Hellevang
+;; Copyright (c) 2012 Mathias Hellevang <mathias.hellevang@gmail.com>
 ;; This code is licenced under LGPLv3.
 ;;
 
