@@ -1,2 +1,0 @@
-* Implement valid otp format
-* Correctly check signature
